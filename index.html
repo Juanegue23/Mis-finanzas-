@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14251f">
+<meta name="description" content="Control personal de gastos, ingresos, presupuestos, ahorros y deudas.">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Mis Finanzas</title>
+<style>
+:root{--bg:#f4f6f3;--card:#fff;--ink:#17231e;--muted:#6b7771;--line:#e4e9e5;--green:#176b4b;--green2:#e4f3eb;--red:#b43b3b;--amber:#946200;--shadow:0 8px 24px rgba(23,35,30,.06)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:84px}
+header{background:#14251f;color:white;padding:22px 18px 20px;border-radius:0 0 24px 24px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-weight:750;font-size:19px}.month{font-size:12px;color:#c6d7ce}
+main{max-width:760px;margin:auto;padding:16px}.balance{margin-top:20px}.balance small{color:#c6d7ce}.balance h1{font-size:32px;margin:4px 0 14px;letter-spacing:-1px}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:#233b31;padding:13px;border-radius:15px}.metric span{display:block;color:#c6d7ce;font-size:12px}.metric strong{display:block;font-size:17px;margin-top:5px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));z-index:5}
+nav button{border:0;background:none;color:var(--muted);font-size:11px;padding:5px;display:flex;flex-direction:column;align-items:center;gap:3px}nav button b{font-size:19px;font-weight:500}nav button.active{color:var(--green);font-weight:700}
+h2{font-size:18px;margin:20px 0 10px}.card{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:15px;box-shadow:var(--shadow);margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.muted{color:var(--muted);font-size:12px}.positive{color:var(--green)}.negative{color:var(--red)}
+button,.btn{cursor:pointer}.primary{background:var(--green);color:white;border:0;border-radius:12px;padding:12px 15px;font-weight:650}.secondary{background:var(--green2);color:var(--green);border:0;border-radius:11px;padding:10px 12px;font-weight:650}.danger{background:#faeaea;color:var(--red);border:0;border-radius:10px;padding:8px 10px}
+input,select{width:100%;padding:12px;border:1px solid #d9e1db;border-radius:11px;background:#fff;font:inherit;color:var(--ink);margin:5px 0 12px}
+label{font-size:12px;font-weight:650;color:#52615a}form .primary{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tabs{display:flex;gap:8px;margin:10px 0}.tabs button{flex:1}
+.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border:0}.pill{font-size:11px;background:#eef2ef;border-radius:20px;padding:4px 8px;color:#52615a}
+.bar{height:9px;background:#edf1ed;border-radius:10px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;background:#2b956a;border-radius:10px}
+.hidden{display:none!important}.empty{text-align:center;color:var(--muted);padding:22px 8px}.smallbtn{font-size:12px;padding:8px 10px}
+canvas{width:100%;height:190px}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:12px}
+@media(min-width:650px){main{padding:22px}.summary{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header>
+ <div class="top"><div class="brand">◈ Mis Finanzas</div><div class="month" id="monthLabel"></div></div>
+ <div class="balance"><small>Disponible este mes</small><h1 id="available">$0</h1></div>
+ <div class="summary">
+  <div class="metric"><span>Ingresos</span><strong id="income">$0</strong></div>
+  <div class="metric"><span>Gastos</span><strong id="expense">$0</strong></div>
+  <div class="metric"><span>Ahorro neto</span><strong id="net">$0</strong></div>
+ </div>
+</header>
+<main>
+<section id="dashboard">
+ <div class="row"><h2>Resumen del mes</h2><span class="pill" id="txCount">0 movimientos</span></div>
+ <div class="card"><div class="row"><strong>Gastos por categoría</strong><span class="muted">Este mes</span></div><div id="categoryChart" style="margin-top:12px"></div></div>
+ <div class="row"><h2>Movimientos recientes</h2><button class="secondary smallbtn" onclick="show('transactions')">Ver todos</button></div>
+ <div class="card" id="recent"></div>
+ <div class="row"><h2>Próximos pagos</h2><button class="secondary smallbtn" onclick="show('reminders')">Ver todos</button></div>
+ <div class="card" id="upcoming"></div>
+</section>
+
+<section id="transactions" class="hidden">
+ <h2>Movimientos</h2>
+ <div class="card">
+  <form id="txForm">
+   <div class="tabs"><button type="button" class="secondary" id="expenseTab" onclick="setType('expense')">− Gasto</button><button type="button" class="secondary" id="incomeTab" onclick="setType('income')">＋ Ingreso</button></div>
+   <input type="hidden" id="txType" value="expense">
+   <label>Concepto</label><input id="txName" placeholder="Ej. Mercado, salario, transporte" required maxlength="70">
+   <div class="grid2"><div><label>Valor (COP)</label><input id="txAmount" type="number" min="1" step="1" placeholder="35000" required></div><div><label>Fecha</label><input id="txDate" type="date" required></div></div>
+   <label>Categoría</label><select id="txCategory"></select>
+   <label>Medio de pago</label><select id="txMethod"><option>Efectivo</option><option>Débito</option><option>Crédito</option><option>Transferencia</option><option>Otro</option></select>
+   <button class="primary" type="submit">Guardar movimiento</button>
+  </form>
+ </div>
+ <div class="card" id="allTransactions"></div>
+</section>
+
+<section id="budgets" class="hidden">
+ <h2>Presupuestos mensuales</h2>
+ <div class="card"><form id="budgetForm"><label>Categoría</label><select id="budgetCategory"></select><label>Límite mensual (COP)</label><input id="budgetAmount" type="number" min="1" placeholder="300000" required><button class="primary">Guardar presupuesto</button></form></div>
+ <div id="budgetList"></div>
+</section>
+
+<section id="goals" class="hidden">
+ <h2>Ahorros y deudas</h2>
+ <div class="card"><strong>Crear una meta o deuda</strong><form id="goalForm" style="margin-top:12px"><label>Tipo</label><select id="goalType"><option value="saving">Meta de ahorro</option><option value="debt">Deuda</option></select><label>Nombre</label><input id="goalName" placeholder="Ej. Viaje / préstamo" required><div class="grid2"><div><label>Meta o saldo inicial (COP)</label><input id="goalTarget" type="number" min="1" required></div><div><label>Valor actual (COP)</label><input id="goalCurrent" type="number" min="0" value="0"></div></div><button class="primary">Guardar</button></form></div>
+ <div id="goalList"></div>
+</section>
+
+<section id="cards" class="hidden">
+ <h2>Tarjetas de crédito</h2>
+ <div class="card"><form id="cardForm"><label>Nombre de la tarjeta</label><input id="cardName" placeholder="Ej. Visa principal" required><div class="grid2"><div><label>Cupo total (COP)</label><input id="cardLimit" type="number" min="1" required></div><div><label>Deuda actual (COP)</label><input id="cardBalance" type="number" min="0" value="0" required></div></div><label>Día de pago (1–31)</label><input id="cardDue" type="number" min="1" max="31" placeholder="15"><button class="primary">Guardar tarjeta</button></form></div>
+ <div id="cardList"></div>
+</section>
+
+<section id="reminders" class="hidden">
+ <h2>Recordatorios de pagos</h2>
+ <div class="card"><form id="reminderForm"><label>Nombre del pago</label><input id="reminderName" placeholder="Ej. Internet, arriendo, tarjeta" required><div class="grid2"><div><label>Valor (COP)</label><input id="reminderAmount" type="number" min="0" placeholder="100000"></div><div><label>Fecha de vencimiento</label><input id="reminderDate" type="date" required></div></div><button class="primary">Agregar recordatorio</button></form></div>
+ <div id="reminderList"></div>
+</section>
+
+<section id="backup" class="hidden">
+ <h2>Más opciones</h2>
+ <div class="card"><div class="row"><div><strong>Tarjetas de crédito</strong><div class="muted">Controla cupos, saldos y días de pago.</div></div><button class="secondary" onclick="show('cards')">Abrir</button></div></div>
+ <h2>Privacidad y respaldo</h2>
+ <div class="card"><strong>Almacenamiento privado en este dispositivo</strong><p class="muted">Los datos se guardan en el almacenamiento local de este navegador. No se envían a un servidor. Si borras los datos del navegador o cambias de dispositivo, puedes perderlos; por eso haz copias de seguridad frecuentes.</p><button class="primary" style="width:100%" onclick="exportBackup()">Descargar copia de seguridad</button><div style="height:9px"></div><label>Restaurar una copia JSON</label><input type="file" id="restoreFile" accept="application/json,.json"><button class="secondary" style="width:100%" onclick="restoreBackup()">Restaurar respaldo</button></div>
+ <div class="card"><strong>Exportar movimientos a CSV</strong><p class="muted">Para abrirlos en Excel.</p><button class="secondary" style="width:100%" onclick="exportCSV()">Descargar CSV</button></div>
+ <div class="card"><strong>Eliminar todos los datos</strong><p class="muted">Esta acción no se puede deshacer. Descarga un respaldo antes.</p><button class="danger" onclick="clearAll()">Borrar mis datos</button></div>
+ <footer>Versión inicial · Datos guardados localmente · Moneda COP</footer>
+</section>
+</main>
+<nav>
+ <button class="active" data-page="dashboard" onclick="show('dashboard')"><b>⌂</b>Inicio</button>
+ <button data-page="transactions" onclick="show('transactions')"><b>＋</b>Movimientos</button>
+ <button data-page="budgets" onclick="show('budgets')"><b>▤</b>Presupuestos</button>
+ <button data-page="goals" onclick="show('goals')"><b>◎</b>Ahorros</button>
+ <button data-page="backup" onclick="show('backup')"><b>⚙</b>Más</button>
+</nav>
+<script>
+const KEY='mis_finanzas_v1';
+const categories={expense:['Alimentación','Transporte','Vivienda','Servicios','Salud','Educación','Ocio','Compras','Suscripciones','Otros'],income:['Salario','Honorarios','Negocio','Inversiones','Regalos','Otros']};
+let data=load(),type='expense';
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(n)||0);
+const today=()=>new Date().toISOString().slice(0,10);
+const monthKey=d=>String(d||'').slice(0,7);
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||{transactions:[],budgets:[],goals:[],cards:[],reminders:[]}}catch(e){return {transactions:[],budgets:[],goals:[],cards:[],reminders:[]}}}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function monthTx(){let m=today().slice(0,7);return data.transactions.filter(t=>monthKey(t.date)===m)}
+function sum(arr,kind){return arr.filter(t=>!kind||t.type===kind).reduce((a,t)=>a+Number(t.amount),0)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function show(page){document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hidden',s.id!==page));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='cards')renderCards();window.scrollTo(0,0)}
+function fillCategories(){ $('txCategory').innerHTML=categories[type].map(c=>`<option>${c}</option>`).join('');$('budgetCategory').innerHTML=categories.expense.map(c=>`<option>${c}</option>`).join('')}
+function setType(t){type=t;$('txType').value=t;$('expenseTab').style.opacity=t==='expense'?'1':'.55';$('incomeTab').style.opacity=t==='income'?'1':'.55';fillCategories()}
+function addItem(arr,obj){obj.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());arr.unshift(obj);save()}
+$('txDate').value=today();$('reminderDate').value=today();fillCategories();setType('expense');
+$('txForm').onsubmit=e=>{e.preventDefault();addItem(data.transactions,{type, name:$('txName').value.trim(),amount:Number($('txAmount').value),date:$('txDate').value,category:$('txCategory').value,method:$('txMethod').value});e.target.reset();$('txDate').value=today();setType(type)};
+$('budgetForm').onsubmit=e=>{e.preventDefault();let c=$('budgetCategory').value,a=Number($('budgetAmount').value);data.budgets=data.budgets.filter(x=>x.category!==c);addItem(data.budgets,{category:c,amount:a});e.target.reset()};
+$('goalForm').onsubmit=e=>{e.preventDefault();addItem(data.goals,{type:$('goalType').value,name:$('goalName').value.trim(),target:Number($('goalTarget').value),current:Number($('goalCurrent').value)});e.target.reset()};
+$('cardForm').onsubmit=e=>{e.preventDefault();addItem(data.cards,{name:$('cardName').value.trim(),limit:Number($('cardLimit').value),balance:Number($('cardBalance').value),due:Number($('cardDue').value)||null});e.target.reset()};
+$('reminderForm').onsubmit=e=>{e.preventDefault();addItem(data.reminders,{name:$('reminderName').value.trim(),amount:Number($('reminderAmount').value)||0,date:$('reminderDate').value,paid:false});e.target.reset();$('reminderDate').value=today()};
+function txHTML(t){return `<div class="item row"><div style="min-width:0"><strong>${esc(t.name)}</strong><div class="muted">${esc(t.category)} · ${esc(t.date)} · ${esc(t.method||'')}</div></div><div style="text-align:right;white-space:nowrap"><strong class="${t.type==='income'?'positive':'negative'}">${t.type==='income'?'+':'−'}${money(t.amount)}</strong><br><button class="danger smallbtn" onclick="del('transactions','${t.id}')">Eliminar</button></div></div>`}
+function del(arr,id){if(confirm('¿Eliminar este registro?')){data[arr]=data[arr].filter(x=>x.id!==id);save()}}
+function render(){let tx=monthTx(),inc=sum(tx,'income'),out=sum(tx,'expense');$('monthLabel').textContent=new Date().toLocaleDateString('es-CO',{month:'long',year:'numeric'});$('income').textContent=money(inc);$('expense').textContent=money(out);$('available').textContent=money(inc-out);$('net').textContent=money(inc-out);$('txCount').textContent=tx.length+' movimientos';$('recent').innerHTML=data.transactions.length?data.transactions.slice(0,5).map(txHTML).join(''):'<div class="empty">Aún no tienes movimientos. Registra tu primer ingreso o gasto.</div>';$('allTransactions').innerHTML=data.transactions.length?data.transactions.map(txHTML).join(''):'<div class="empty">No hay movimientos registrados.</div>';
+let by={};tx.filter(t=>t.type==='expense').forEach(t=>by[t.category]=(by[t.category]||0)+Number(t.amount));let entries=Object.entries(by).sort((a,b)=>b[1]-a[1]);$('categoryChart').innerHTML=entries.length?entries.map(([c,v])=>`<div style="margin:10px 0"><div class="row"><span>${esc(c)}</span><strong>${money(v)}</strong></div><div class="bar"><i style="width:${out?Math.min(100,v/out*100):0}%"></i></div></div>`).join(''):'<div class="empty">Tus gastos por categoría aparecerán aquí.</div>';
+$('budgetList').innerHTML=data.budgets.length?data.budgets.map(b=>{let spent=sum(tx.filter(t=>t.category===b.category),'expense'),pct=Math.min(100,spent/b.amount*100);return `<div class="card"><div class="row"><strong>${esc(b.category)}</strong><button class="danger smallbtn" onclick="del('budgets','${b.id}')">Eliminar</button></div><div class="row muted"><span>${money(spent)} gastados</span><span>Límite ${money(b.amount)}</span></div><div class="bar"><i style="width:${pct}%"></i></div><div class="muted">${Math.round(pct)}% utilizado · ${money(Math.max(0,b.amount-spent))} disponible</div></div>`}).join(''):'<div class="card empty">Aún no has definido presupuestos.</div>';
+$('goalList').innerHTML=data.goals.length?data.goals.map(g=>`<div class="card"><div class="row"><div><strong>${esc(g.name)}</strong><div class="muted">${g.type==='saving'?'Meta de ahorro':'Deuda'}</div></div><button class="danger smallbtn" onclick="del('goals','${g.id}')">Eliminar</button></div><div class="row"><span>${money(g.current)} de ${money(g.target)}</span><strong>${Math.round(Math.min(100,g.current/g.target*100))}%</strong></div><div class="bar"><i style="width:${Math.min(100,g.current/g.target*100)}%"></i></div><button class="secondary smallbtn" onclick="updateGoal('${g.id}')">Actualizar valor actual</button></div>`).join(''):'<div class="card empty">Agrega una meta de ahorro o una deuda.</div>';
+renderCards();$('reminderList').innerHTML=data.reminders.length?data.reminders.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>`<div class="item row"><div><strong>${esc(r.name)}</strong><div class="muted">${esc(r.date)} · ${money(r.amount)}</div><span class="pill">${r.paid?'Pagado':'Pendiente'}</span></div><div><button class="secondary smallbtn" onclick="togglePaid('${r.id}')">${r.paid?'Reabrir':'Marcar pagado'}</button> <button class="danger smallbtn" onclick="del('reminders','${r.id}')">×</button></div></div>`).join(''):'<div class="empty">No tienes recordatorios.</div>';
+let next=data.reminders.filter(r=>!r.paid).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);$('upcoming').innerHTML=next.length?next.map(r=>`<div class="item row"><div><strong>${esc(r.name)}</strong><div class="muted">${esc(r.date)}</div></div><strong>${money(r.amount)}</strong></div>`).join(''):'<div class="empty">No hay pagos pendientes registrados.</div>';
+}
+function renderCards(){$('cardList').innerHTML=data.cards.length?data.cards.map(c=>`<div class="card"><div class="row"><strong>${esc(c.name)}</strong><button class="danger smallbtn" onclick="del('cards','${c.id}')">Eliminar</button></div><div class="row"><span class="muted">Deuda actual</span><strong>${money(c.balance)}</strong></div><div class="row muted"><span>Cupo ${money(c.limit)}</span><span>Disponible ${money(Math.max(0,c.limit-c.balance))}</span></div><div class="bar"><i style="width:${Math.min(100,c.balance/c.limit*100)}%"></i></div><div class="muted">${c.due?'Día de pago: '+c.due:'Sin día de pago registrado'}</div></div>`).join(''):'<div class="card empty">Registra tus tarjetas para controlar cupos y saldos.</div>'}
+function updateGoal(id){let g=data.goals.find(x=>x.id===id),v=prompt('Nuevo valor actual en COP:',g.current);if(v!==null&&Number(v)>=0){g.current=Number(v);save()}}
+function togglePaid(id){let r=data.reminders.find(x=>x.id===id);r.paid=!r.paid;save()}
+function exportBackup(){let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});download(blob,'respaldo-mis-finanzas-'+today()+'.json')}
+function exportCSV(){let rows=[['Fecha','Tipo','Concepto','Categoría','Medio','Valor COP'],...data.transactions.map(t=>[t.date,t.type,t.name,t.category,t.method||'',t.amount])];let csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');download(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),'movimientos-'+today()+'.csv')}
+function download(blob,name){let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+function restoreBackup(){let f=$('restoreFile').files[0];if(!f)return alert('Selecciona primero un archivo JSON.');let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!['transactions','budgets','goals','cards','reminders'].every(k=>Array.isArray(d[k])))throw 0;if(!confirm('Esto reemplazará los datos actuales. ¿Continuar?'))return;data=d;save();alert('Respaldo restaurado.')}catch(e){alert('El archivo no parece ser un respaldo válido.')}};r.readAsText(f)}
+function clearAll(){if(confirm('¿Seguro que deseas borrar permanentemente todos los registros de este navegador?')){data={transactions:[],budgets:[],goals:[],cards:[],reminders:[]};save()}}
+render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>
